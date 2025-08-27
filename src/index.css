@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* You can also add custom global styles here if needed */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap');
+
+html, body {
+    height: 100%; /* Ensure html and body take full viewport height */
+    margin: 0; /* Remove default margin */
+    padding: 0; /* Remove default padding */
+    overflow: hidden; /* Prevent scrolling on html/body to stabilize background */
+    font-family: 'Inter', sans-serif; /* Apply font globally */
+}
+
+/* Ensure the main app container can still scroll its content if it overflows */
+#root {
+    height: 100%; /* Make #root take full height */
+    overflow-y: auto; /* Allow vertical scrolling within the #root container */
+    -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
+}
