@@ -195,8 +195,9 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
     );
 
     return (
+        //"flex items-center justify-center min-h-screen bg-gray-100"
         // The outermost div with min-h-screen, flex, items-center, justify-center, and padding is now in App.jsx
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200"> {/* Added mx-auto here */}
+        <div className="mx-auto bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200"> {/* Added mx-auto here */}
             <div className="text-center mb-8">
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-2">
                     Create Your Account
@@ -405,23 +406,21 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                             </label>
                             <div className="relative">
                                 <input
+                                    type={showPassword ? "text" : "password"}
                                     id="password"
                                     name="password"
-                                    type={showPassword ? 'text' : 'password'}
                                     autoComplete="new-password"
                                     required
-                                    className="block w-full px-4 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:ring-[#480360] focus:border-[#480360] sm:text-sm transition-all duration-200 ease-in-out hover:border-gray-400 focus:ring-2 focus:ring-offset-0 focus:ring-offset-white"
-                                    placeholder="Create a strong password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    disabled={loading}
+                                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#480360] focus:border-[#480360] sm:text-sm"
+                                    placeholder="Create a strong password"
                                 />
                                 <button
                                     type="button"
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                                     onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
                                 >
-                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                 </button>
                             </div>
                             <p className={`mt-1 text-xs ${getPasswordStrengthColor(getPasswordStrength(password))}`}>
@@ -429,34 +428,24 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                             </p>
                         </div>
 
-                        <div className="mb-4">
-                            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-2">
-                                Confirm Password
-                            </label>
-                            <div className="relative">
-                                <input
-                                    id="confirm-password"
-                                    name="confirm-password"
-                                    type={showConfirmPassword ? 'text' : 'password'}
-                                    autoComplete="new-password"
-                                    required
-                                    className="block w-full px-4 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:ring-[#480360] focus:border-[#480360] sm:text-sm transition-all duration-200 ease-in-out hover:border-gray-400 focus:ring-2 focus:ring-offset-0 focus:ring-offset-white"
-                                    placeholder="Confirm your password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    disabled={loading}
-                                />
-                                <button
-                                    type="button"
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                >
-                                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                                </button>
-                            </div>
-                            {password && confirmPassword && password !== confirmPassword && (
-                                <p className="mt-1 text-xs text-red-500">Passwords do not match.</p>
-                            )}
+                        <div className="relative">
+                            <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                id="confirmPassword"
+                                name="confirmPassword"
+                                autoComplete="new-password"
+                                required
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#480360] focus:border-[#480360] sm:text-sm"
+                                placeholder="Confirm your password"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
+                            >
+                            </button>
                         </div>
 
                         <button
