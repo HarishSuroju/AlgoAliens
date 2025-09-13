@@ -6,6 +6,7 @@ import SignupPage from "./pages/SignupPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import DashboardPage from "./pages/Dashboard";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 
 // A wrapper for routes that require a user to be authenticated.
 const ProtectedRoute = ({ children }) => {
@@ -60,7 +61,24 @@ function App() {
             </PublicRoute>
           }
         />
-        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPasswordPage />
+            </PublicRoute>
+          }
+        />
+        
+        <Route
+          path="/reset-password/:token"
+          element={
+            <PublicRoute>
+              <ResetPasswordPage />
+            </PublicRoute>
+          }
+        />
 
         {/* Protected routes */}
         <Route

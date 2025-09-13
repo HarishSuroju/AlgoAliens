@@ -6,6 +6,7 @@ import Footer from '../components/layout/Footer';
 const Dashboard = () => {
   const { user } = useAuth();
 
+  
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />

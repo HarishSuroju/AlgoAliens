@@ -1,6 +1,7 @@
 // controllers/authController.js
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import User from "../models/User.js";
 import pool from "../config/database.js";
 import nodemailer from "nodemailer";
@@ -11,6 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
 // Temporary in-memory OTP store (⚠️ in production, use Redis or DB with expiry)
 const OTP_STORE = {};
+const RESET_TOKENS = {};
 
 // ==================== REGISTER ====================
 export const register = async (req, res) => {
@@ -176,6 +178,79 @@ export const getMe = async (req, res) => {
     res.json(req.user);
   } catch (err) {
     console.error("Get me error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ==================== REQUEST RESET ====================
+export const requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    const user = await findUserByEmail(email);
+    if (!user) return res.status(200).json({ message: "If this email exists, a reset link has been sent" });
+
+    // Generate a random token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    RESET_TOKENS[resetToken] = { email, expires: Date.now() + 1000 * 60 * 15 }; // 15 min expiry
+
+    // Send token via email (or SMS if you have)
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+
+    console.log("FRONTEND_URL:", process.env.FRONTEND_URL);
+    console.log("Nothin");
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    await transporter.sendMail({
+      from: `"AlgoAliens Auth" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Password Reset Request",
+      text: `Hello,\n\nClick the link below to reset your password (expires in 15 minutes):\n\n${resetLink}`,
+    });
+
+    res.json({ message: "If this email exists, a reset link has been sent" });
+  } catch (err) {
+    console.error("❌ Request reset error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ==================== RESET PASSWORD ====================
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body;
+    if (!token || !password || !confirmPassword)
+      return res.status(400).json({ message: "All fields are required" });
+
+    if (password !== confirmPassword)
+      return res.status(400).json({ message: "Passwords do not match" });
+
+    const record = RESET_TOKENS[token];
+    if (!record || record.expires < Date.now())
+      return res.status(400).json({ message: "Invalid or expired reset token" });
+
+    const user = await findUserByEmail(record.email);
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Update in DB
+    await pool.query("UPDATE users SET password=$1 WHERE email=$2", [
+      hashedPassword,
+      record.email,
+    ]);
+
+    // Delete token
+    delete RESET_TOKENS[token];
+
+    res.json({ message: "Password has been reset successfully" });
+  } catch (err) {
+    console.error("❌ Reset password error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

@@ -129,7 +129,7 @@ const LoginPage = () => {
             </label>
             <button
               type="button"
-              onClick={() => setShowReset(true)}
+              onClick={() => navigate("/forgot-password")}
               className="text-blue-600 hover:underline"
             >
               Forgot password?
