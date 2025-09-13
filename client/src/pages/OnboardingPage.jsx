@@ -10,6 +10,7 @@ const OnboardingPage = () => {
 
   const handleComplete = async (formData) => {
     try {
+      console.log("Saved token:", localStorage.getItem("token"));
       await saveOnboarding(formData);
       navigate("/dashboard");
     } catch (error) {

@@ -6,6 +6,6 @@ export const saveOnboarding = async (data) => {
 };
 
 export const checkOnboardingStatus = async () => {
-  const res = await api.get("/onboarding/status");
+  const res = await api.get("/onboarding");
   return res.data;
 };

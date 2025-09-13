@@ -2,10 +2,12 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import pool from "../config/database.js";
 import nodemailer from "nodemailer";
 import { findUserByEmail, createUser, verifyUserEmail } from "../models/User.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
 // Temporary in-memory OTP store (⚠️ in production, use Redis or DB with expiry)
 const OTP_STORE = {};
@@ -139,19 +141,27 @@ export const login = async (req, res) => {
     // JWT token
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "1h" });
 
+    // ✅ Onboarding check (moved inside login)
+    const onboarding = await pool.query(
+      "SELECT completed FROM onboarding WHERE user_id=$1",
+      [user.id]
+    );
+    const onboardingCompleted = onboarding.rows[0]?.completed || false;
+
     res.json({
       message: "✅ Login successful",
+      token,
       user: {
         id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        firstName: user.first_name, // note: your DB columns use snake_case
+        lastName: user.last_name,
         email: user.email,
         phone: user.phone,
         address: user.address,
         dob: user.dob,
         gender: user.gender,
       },
-      token,
+      needsOnboarding: !onboardingCompleted, // 👈 frontend can use this
     });
   } catch (error) {
     console.error("❌ Login error:", error);
@@ -159,14 +169,13 @@ export const login = async (req, res) => {
   }
 };
 
-// ==================== ONBOARDING CHECK ====================
 
-const onboarding = await pool.query("SELECT completed FROM onboarding WHERE user_id=$1", [user.id]);
-const onboardingCompleted = onboarding.rows[0]?.completed || false;
-
-res.json({
-  message: "Login successful",
-  token,
-  user: { id: user.id, email: user.email },
-  needsOnboarding: !onboardingCompleted
-});
+export const getMe = async (req, res) => {
+  try {
+    // req.user is populated by authMiddleware
+    res.json(req.user);
+  } catch (err) {
+    console.error("Get me error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};

@@ -4,6 +4,7 @@ import cors from "cors";
 import pool from "./config/database.js";
 import authRoutes from "./routes/authRoutes.js";
 import { createUserTable } from "./models/User.js";
+import onboardingRoutes from "./routes/onboardingRoutes.js";
 
 dotenv.config();
 
@@ -13,6 +14,8 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
+
+app.use("/api/onboarding", onboardingRoutes);
 
 // Test DB connection
 (async () => {
