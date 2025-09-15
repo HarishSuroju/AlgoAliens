@@ -1,3 +1,6 @@
+#environment
+.env
+>>>>>>> 66d3aab10809b3429551b47a2be7882e54d64296
 # Logs
 logs
 *.log
@@ -34,32 +37,7 @@ Backend/.env
 *.njsproj
 *.sln
 *.sw?
-
-# OS generated files
-Thumbs.db
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Desktop.ini
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# Temporary folders
-tmp/
-temp/
-
-# Database
-*.sqlite
-*.sqlite3
-*.db
+=======
+#environment
+.env
+>>>>>>> 66d3aab10809b3429551b47a2be7882e54d64296
