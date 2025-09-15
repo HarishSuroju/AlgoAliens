@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -17,6 +17,7 @@ import faviconImage from '../assets/images/favicon (1).ico';
 const Navigation = () => {
     const { isAuthenticated } = useAuth();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [userProfileImage, setUserProfileImage] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -26,10 +27,83 @@ const Navigation = () => {
         { name: 'Resources', icon: BookOpen, path: '/resources' },
         { name: 'Help', icon: HelpCircle, path: '/help' },
         ...(isAuthenticated ? [
-            { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-            { name: 'Profile', icon: User, path: '/profile' }
+            { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }
         ] : [])
     ];
+
+    // Load profile image from localStorage
+    useEffect(() => {
+        const savedImage = localStorage.getItem('userProfileImage');
+        setUserProfileImage(savedImage);
+        
+        // Listen for storage changes to update profile image
+        const handleStorageChange = () => {
+            const newImage = localStorage.getItem('userProfileImage');
+            setUserProfileImage(newImage);
+        };
+        
+        // Listen for both storage events and custom events
+        window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('profileImageUpdated', handleStorageChange);
+        
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('profileImageUpdated', handleStorageChange);
+        };
+    }, [isAuthenticated]);
+    
+    // Refresh profile image when auth state changes
+    useEffect(() => {
+        if (isAuthenticated) {
+            const savedImage = localStorage.getItem('userProfileImage');
+            setUserProfileImage(savedImage);
+        } else {
+            setUserProfileImage(null);
+        }
+    }, [isAuthenticated]);
+    
+    // Custom profile navigation item
+    const ProfileNavItem = ({ isMobile = false }) => {
+        if (!isAuthenticated) return null;
+        
+        const baseClasses = isMobile 
+            ? `flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium transition-all duration-200 ${
+                isActive('/profile')
+                    ? 'bg-[#480360] text-white'
+                    : 'text-gray-700 hover:bg-[#E6FFFA] hover:text-[#480360]'
+            }`
+            : `flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                isActive('/profile')
+                    ? 'bg-[#480360] text-white'
+                    : 'text-gray-700 hover:bg-[#E6FFFA] hover:text-[#480360]'
+            }`;
+        
+        return (
+            <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+            >
+                <Link
+                    to="/profile"
+                    onClick={() => isMobile && setIsMobileMenuOpen(false)}
+                    className={baseClasses}
+                >
+                    <div className={`rounded-full overflow-hidden ${isMobile ? 'w-5 h-5' : 'w-4 h-4'} flex-shrink-0`}>
+                        {userProfileImage ? (
+                            <img 
+                                src={userProfileImage} 
+                                alt="Profile" 
+                                className="w-full h-full object-cover"
+                            />
+                        ) : (
+                            <User className={`${isMobile ? 'h-5 w-5' : 'h-4 w-4'}`} />
+                        )}
+                    </div>
+                    <span>Profile</span>
+                </Link>
+            </motion.div>
+        );
+    };
 
     const isActive = (path) => location.pathname === path;
 
@@ -82,6 +156,9 @@ const Navigation = () => {
                                     </Link>
                                 </motion.div>
                             ))}
+                            
+                            {/* Custom Profile Navigation Item */}
+                            <ProfileNavItem />
                             
                             {!isAuthenticated && (
                                 <motion.div
@@ -142,6 +219,9 @@ const Navigation = () => {
                             <span>{item.name}</span>
                         </Link>
                     ))}
+                    
+                    {/* Custom Profile Navigation Item for Mobile */}
+                    <ProfileNavItem isMobile={true} />
                     
                     {!isAuthenticated && (
                         <Link

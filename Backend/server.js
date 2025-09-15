@@ -7,14 +7,60 @@ import jwt from "jsonwebtoken";
 import twilio from "twilio";
 import axios from "axios";
 import pkg from "pg";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 
 const { Pool } = pkg;
 
 dotenv.config();
 
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadsDir);
+    },
+    filename: function (req, file, cb) {
+        // Generate unique filename with timestamp
+        const uniqueName = `profile-${req.user.id}-${Date.now()}${path.extname(file.originalname)}`;
+        cb(null, uniqueName);
+    }
+});
+
+// File filter to allow only images
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    } else {
+        cb(new Error('Only image files are allowed!'), false);
+    }
+};
+
+const upload = multer({ 
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    }
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsDir));
 
 const CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
@@ -411,16 +457,20 @@ app.post("/auth/google/signup", async (req, res) => {
 // ---------- MIDDLEWARE FOR TOKEN VERIFICATION ----------
 const verifyToken = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1]; // Bearer TOKEN
+    console.log('Token verification - Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
     
     if (!token) {
+        console.log('Token verification failed: No token provided');
         return res.status(401).json({ message: "Access token required" });
     }
     
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
+        console.log('Token verification successful for user:', decoded.id, decoded.email);
         req.user = decoded; // Add user info to request
         next();
     } catch (error) {
+        console.log('Token verification failed:', error.message);
         return res.status(401).json({ message: "Invalid or expired token" });
     }
 };
@@ -431,6 +481,22 @@ app.post("/onboarding", verifyToken, async (req, res) => {
         console.log('Onboarding request received:', req.body);
         const { interests, goals, fieldOfStudy, collegeDetails } = req.body;
         const userId = req.user.id;
+        
+        // First verify that the user exists in the database
+        const { rows: userRows } = await pool.query(
+            "SELECT id FROM users WHERE id = $1", 
+            [userId]
+        );
+        
+        if (userRows.length === 0) {
+            console.error(`User with ID ${userId} not found in database`);
+            return res.status(401).json({ 
+                message: "User not found. Please log in again.",
+                code: "USER_NOT_FOUND"
+            });
+        }
+        
+        console.log(`Verified user ${userId} exists in database`);
         
         if (!interests || !Array.isArray(interests) || interests.length === 0) {
             return res.status(400).json({ message: "At least one interest is required" });
@@ -501,20 +567,34 @@ app.post("/onboarding", verifyToken, async (req, res) => {
 app.get("/profile", verifyToken, async (req, res) => {
     try {
         const userId = req.user.id;
+        console.log('Profile request for user ID:', userId);
+        
+        // First ensure the profile_image_url column exists
+        try {
+            await pool.query(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url TEXT"
+            );
+            console.log('Ensured profile_image_url column exists');
+        } catch (alterError) {
+            console.log('Column already exists or alter failed:', alterError.message);
+        }
         
         // Fetch user data from database
         const userQuery = `
-            SELECT id, firstname, lastname, email, created_at
+            SELECT id, firstname, lastname, email, created_at, profile_image_url
             FROM users 
             WHERE id = $1
         `;
+        console.log('Executing user query for ID:', userId);
         const userResult = await pool.query(userQuery, [userId]);
         
         if (userResult.rows.length === 0) {
+            console.log('User not found with ID:', userId);
             return res.status(404).json({ message: "User not found" });
         }
         
         const user = userResult.rows[0];
+        console.log('User found:', { id: user.id, email: user.email, firstName: user.firstname });
         
         // Fetch onboarding data if exists
         const onboardingQuery = `
@@ -522,7 +602,9 @@ app.get("/profile", verifyToken, async (req, res) => {
             FROM onboarding 
             WHERE user_id = $1
         `;
+        console.log('Executing onboarding query for user ID:', userId);
         const onboardingResult = await pool.query(onboardingQuery, [userId]);
+        console.log('Onboarding data found:', onboardingResult.rows.length > 0 ? 'Yes' : 'No');
         
         // Create username from email if not exists
         const username = user.email ? user.email.split('@')[0] : 'user';
@@ -536,6 +618,7 @@ app.get("/profile", verifyToken, async (req, res) => {
                 username: username,
                 email: user.email,
                 createdAt: user.created_at,
+                profileImage: user.profile_image_url,
                 interests: onboardingResult.rows[0]?.interests || [],
                 goals: onboardingResult.rows[0]?.goals || [],
                 fieldOfStudy: onboardingResult.rows[0]?.field_of_study || [],
@@ -544,10 +627,12 @@ app.get("/profile", verifyToken, async (req, res) => {
             }
         };
         
+        console.log('Sending profile data:', profileData);
         res.status(200).json(profileData);
     } catch (error) {
         console.error("Profile fetch error:", error);
-        res.status(500).json({ message: "Internal server error" });
+        console.error("Error stack:", error.stack);
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
 
@@ -566,6 +651,163 @@ app.put("/profile", verifyToken, async (req, res) => {
     } catch (error) {
         console.error("Profile update error:", error);
         res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// ---------- PROFILE IMAGE UPLOAD ----------
+app.post("/profile/upload-image", verifyToken, upload.single('profileImage'), async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        if (!req.file) {
+            return res.status(400).json({ message: "No image file provided" });
+        }
+        
+        // Create the public URL for the uploaded image
+        const imageUrl = `http://localhost:4000/uploads/${req.file.filename}`;
+        
+        // Update user's profile image in database
+        await pool.query(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url TEXT"
+        );
+        
+        const { rows } = await pool.query(
+            "UPDATE users SET profile_image_url = $1 WHERE id = $2 RETURNING id, profile_image_url",
+            [imageUrl, userId]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        res.status(200).json({
+            message: "Profile image uploaded successfully",
+            imageUrl: imageUrl
+        });
+        
+    } catch (error) {
+        console.error("Profile image upload error:", error);
+        
+        // Clean up uploaded file if database operation failed
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
+        
+        res.status(500).json({ message: "Failed to upload profile image" });
+    }
+});
+
+// ---------- FORGOT PASSWORD ----------
+app.post("/auth/forgot-password", async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+        
+        // Check if user exists
+        const { rows } = await pool.query("SELECT id, firstname, lastname FROM users WHERE email = $1", [email]);
+        
+        if (rows.length === 0) {
+            // Don't reveal if email exists or not for security
+            return res.status(200).json({ 
+                message: "If an account with this email exists, a password reset link has been sent." 
+            });
+        }
+        
+        const user = rows[0];
+        
+        // Generate reset token (valid for 1 hour)
+        const resetToken = jwt.sign(
+            { id: user.id, email: email, type: 'password_reset' }, 
+            JWT_SECRET, 
+            { expiresIn: '1h' }
+        );
+        
+        // Create reset URL (you might want to change this to your frontend URL)
+        const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+        
+        // Send reset email
+        const mailOptions = {
+            from: process.env.SMTP_USER,
+            to: email,
+            subject: 'Password Reset Request - AlgoAliens',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #480360;">Password Reset Request</h2>
+                    <p>Hello ${user.firstname || 'User'},</p>
+                    <p>You requested a password reset for your AlgoAliens account. Click the button below to reset your password:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${resetUrl}" style="background-color: #480360; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
+                    </div>
+                    <p>Or copy and paste this link into your browser:</p>
+                    <p style="word-break: break-all; color: #666;">${resetUrl}</p>
+                    <p style="color: #666; font-size: 14px;">This link will expire in 1 hour. If you didn't request this password reset, please ignore this email.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                    <p style="color: #999; font-size: 12px;">AlgoAliens Team</p>
+                </div>
+            `
+        };
+        
+        await transporter.sendMail(mailOptions);
+        
+        res.status(200).json({ 
+            message: "If an account with this email exists, a password reset link has been sent." 
+        });
+        
+    } catch (error) {
+        console.error("Forgot password error:", error);
+        res.status(500).json({ message: "Server error while processing password reset request" });
+    }
+});
+
+// ---------- RESET PASSWORD ----------
+app.post("/auth/reset-password", async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        
+        if (!token || !password) {
+            return res.status(400).json({ message: "Token and new password are required" });
+        }
+        
+        if (password.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters long" });
+        }
+        
+        // Verify reset token
+        let decoded;
+        try {
+            decoded = jwt.verify(token, JWT_SECRET);
+        } catch (error) {
+            return res.status(400).json({ message: "Invalid or expired reset token" });
+        }
+        
+        // Check if token is specifically for password reset
+        if (decoded.type !== 'password_reset') {
+            return res.status(400).json({ message: "Invalid reset token" });
+        }
+        
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Update user password
+        const { rows } = await pool.query(
+            "UPDATE users SET password = $1 WHERE id = $2 AND email = $3 RETURNING id",
+            [hashedPassword, decoded.id, decoded.email]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(400).json({ message: "User not found" });
+        }
+        
+        res.status(200).json({ 
+            message: "Password reset successfully. You can now login with your new password." 
+        });
+        
+    } catch (error) {
+        console.error("Reset password error:", error);
+        res.status(500).json({ message: "Server error while resetting password" });
     }
 });
 

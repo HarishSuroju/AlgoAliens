@@ -251,9 +251,13 @@ export default function LoginForm({ openModal }) {
                 </div>
 
                 <div className="text-sm text-right mb-6">
-                    <a href="#" className="font-medium text-[#480360] hover:text-[#a14097] transition-colors duration-200 ease-in-out">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/forgot-password')}
+                        className="font-medium text-[#480360] hover:text-[#a14097] transition-colors duration-200 ease-in-out"
+                    >
                         Forgot your password?
-                    </a>
+                    </button>
                 </div>
 
                 <button

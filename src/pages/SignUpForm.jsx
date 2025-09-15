@@ -7,6 +7,7 @@ import axios from "axios";
 
 export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal }) {
     const { setIsAuthenticated } = useAuth();
+    const navigate = useNavigate();
     const [firstName, setFirstName] = useState('');
     const [middleName, setMiddleName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -126,7 +127,7 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                 throw new Error(signData.message || "Signup failed");
             }
 
-            setMessage({ type: "success", text: signData.message || "Account created!" });
+            setMessage({ type: "success", text: "Account created successfully! Redirecting to onboarding..." });
             
             // Store the token and update authentication state
             if (signData.token) {
@@ -134,9 +135,17 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                 setIsAuthenticated(true);
             }
             
+            // Call the onSignUpSuccess callback first
+            onSignUpSuccess({ 
+                email: email, 
+                username: `${firstName} ${lastName}`,
+                firstName,
+                lastName
+            });
+            
             // Add delay for success message visibility, then navigate
             setTimeout(() => {
-                navigate("/onboarding", { replace: false });
+                navigate("/onboarding", { replace: true });
             }, 1500);
         } catch (err) {
             setMessage({ type: "error", text: err.message });
@@ -230,11 +239,18 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                 
                 setMessage({ type: 'success', text: 'Google signup successful! Redirecting to onboarding...' });
                 openModal("Google Signup Success", `Welcome ${userProfile.name}! Redirecting to onboarding...`);
-                onSignUpSuccess({ email: userProfile.email, username: userProfile.name });
+                
+                // Call the onSignUpSuccess callback first
+                onSignUpSuccess({ 
+                    email: userProfile.email, 
+                    username: userProfile.name,
+                    firstName: userProfile.given_name || userProfile.name.split(' ')[0],
+                    lastName: userProfile.family_name || userProfile.name.split(' ')[1] || ''
+                });
                 
                 // Use setTimeout to allow modal to show briefly before navigation
                 setTimeout(() => {
-                    navigate("/onboarding", { replace: false });
+                    navigate("/onboarding", { replace: true });
                 }, 1500);
                 
             } catch (error) {
@@ -256,8 +272,6 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
         const scope = "user:email";
         window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=signup`;
     };
-
-    const navigate = useNavigate();
 
     const handleVerifyOtp = () => { /* no-op as handleSignUp handles verification */ };
 

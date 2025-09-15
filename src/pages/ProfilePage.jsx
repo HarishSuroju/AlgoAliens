@@ -26,17 +26,23 @@ const ProfilePage = () => {
     });
 
     const [editedProfile, setEditedProfile] = useState({ ...profile });
+    const [profileImageFile, setProfileImageFile] = useState(null);
+    const [uploadingImage, setUploadingImage] = useState(false);
 
     // Fetch user profile data
     useEffect(() => {
         const fetchUserProfile = async () => {
             try {
                 const token = localStorage.getItem('token');
+                console.log('Token from localStorage:', token ? 'Token exists' : 'No token found');
+                
                 if (!token) {
+                    console.log('No token found, redirecting to login');
                     navigate('/login');
                     return;
                 }
 
+                console.log('Making request to /profile endpoint...');
                 const response = await fetch('http://localhost:4000/profile', {
                     method: 'GET',
                     headers: {
@@ -45,16 +51,24 @@ const ProfilePage = () => {
                     }
                 });
 
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Response error:', errorText);
+                    
                     if (response.status === 401) {
+                        console.log('Unauthorized, removing token and redirecting to login');
                         localStorage.removeItem('token');
                         navigate('/login');
                         return;
                     }
-                    throw new Error('Failed to fetch profile');
+                    throw new Error(`Failed to fetch profile: ${response.status} ${errorText}`);
                 }
 
                 const userData = await response.json();
+                console.log('User data received:', userData);
                 
                 // Format the user data
                 const formattedProfile = {
@@ -72,11 +86,17 @@ const ProfilePage = () => {
                     collegeDetails: userData.user?.collegeDetails || ''
                 };
 
+                console.log('Formatted profile:', formattedProfile);
                 setProfile(formattedProfile);
                 setEditedProfile(formattedProfile);
+                
+                // Store profile image in localStorage for navigation component
+                if (formattedProfile.profileImage) {
+                    localStorage.setItem('userProfileImage', formattedProfile.profileImage);
+                }
             } catch (err) {
                 console.error('Error fetching profile:', err);
-                setError('Failed to load profile data');
+                setError(`Failed to load profile data: ${err.message}`);
             } finally {
                 setLoading(false);
             }
@@ -112,8 +132,66 @@ const ProfilePage = () => {
         }
     };
 
+    const handleImageUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            setError('Please select a valid image file');
+            return;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            setError('Image size should be less than 5MB');
+            return;
+        }
+
+        setUploadingImage(true);
+        setError('');
+
+        try {
+            const token = localStorage.getItem('token');
+            const formData = new FormData();
+            formData.append('profileImage', file);
+
+            const response = await fetch('http://localhost:4000/profile/upload-image', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to upload image');
+            }
+
+            const data = await response.json();
+            
+            // Update profile with new image URL
+            const updatedProfile = { ...profile, profileImage: data.imageUrl };
+            setProfile(updatedProfile);
+            setEditedProfile(updatedProfile);
+            
+            // Store in localStorage for navigation component
+            localStorage.setItem('userProfileImage', data.imageUrl);
+            
+            // Trigger custom event for same-tab updates
+            window.dispatchEvent(new Event('profileImageUpdated'));
+            
+        } catch (err) {
+            console.error('Error uploading image:', err);
+            setError('Failed to upload image');
+        } finally {
+            setUploadingImage(false);
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('userProfileImage'); // Clean up profile image
         setIsAuthenticated(false);
         navigate('/login');
     };
@@ -166,7 +244,7 @@ const ProfilePage = () => {
                     <div className="bg-gradient-to-br from-[#480360] to-[#a14097] px-8 py-12">
                         <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">
                             <div className="relative">
-                                <div className="w-32 h-32 rounded-full bg-white flex items-center justify-center overflow-hidden">
+                                <div className="w-32 h-32 rounded-full bg-white flex items-center justify-center overflow-hidden border-4 border-white shadow-lg">
                                     {profile.profileImage ? (
                                         <img 
                                             src={profile.profileImage} 
@@ -176,10 +254,21 @@ const ProfilePage = () => {
                                     ) : (
                                         <User className="h-16 w-16 text-gray-400" />
                                     )}
+                                    {uploadingImage && (
+                                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-full">
+                                            <Loader2 className="h-8 w-8 text-white animate-spin" />
+                                        </div>
+                                    )}
                                 </div>
-                                <label className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg cursor-pointer">
+                                <label className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg cursor-pointer hover:bg-gray-50 transition-colors">
                                     <Camera className="h-4 w-4 text-gray-600" />
-                                    <input type="file" accept="image/*" className="hidden" />
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        className="hidden" 
+                                        onChange={handleImageUpload}
+                                        disabled={uploadingImage}
+                                    />
                                 </label>
                             </div>
                             
@@ -206,13 +295,6 @@ const ProfilePage = () => {
                                     <button className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
                                         <Lock className="h-4 w-4" />
                                         <span>Change Password</span>
-                                    </button>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                                    >
-                                        <LogOut className="h-4 w-4" />
-                                        <span>Logout</span>
                                     </button>
                                 </>
                             ) : (
@@ -358,6 +440,19 @@ const ProfilePage = () => {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                    
+                    {/* Logout Section - At the end of profile page */}
+                    <div className="border-t border-gray-200 px-8 py-6">
+                        <div className="flex justify-center">
+                            <button
+                                onClick={handleLogout}
+                                className="flex items-center space-x-2 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                            >
+                                <LogOut className="h-5 w-5" />
+                                <span>Logout</span>
+                            </button>
                         </div>
                     </div>
                 </motion.div>

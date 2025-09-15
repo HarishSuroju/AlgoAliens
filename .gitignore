@@ -37,6 +37,9 @@ Backend/.env
 *.njsproj
 *.sln
 *.sw?
+
+# Uploads directory (contains user uploaded files)
+Backend/uploads/
 =======
 #environment
 .env
