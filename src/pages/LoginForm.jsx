@@ -72,9 +72,9 @@ export default function LoginForm({ openModal }) {
                         navigate('/onboarding', { replace: false });
                     }, 1500);
                 } else {
-                    // Existing user - redirect to external site
+                    // Existing user - redirect to home page
                     setTimeout(() => {
-                        window.location.href = 'https://www.algorithmaliens.com/';
+                        navigate('/home', { replace: true });
                     }, 1500);
                 }
                 
@@ -137,9 +137,9 @@ export default function LoginForm({ openModal }) {
             setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
             handleModal('Login Success', `Welcome back, ${data.user.firstName}!`);
 
-            // Redirect to external site after brief delay
+            // Redirect to home page after brief delay
             setTimeout(() => {
-                window.location.href = 'https://www.algorithmaliens.com/';
+                navigate('/home', { replace: true });
             }, 1500);
         } catch (error) {
             setMessage({ type: 'error', text: error.message });
@@ -176,7 +176,8 @@ export default function LoginForm({ openModal }) {
     );
 
     return (
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200 mx-auto">
+        <div className="w-full min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 font-['Inter'] overflow-x-hidden">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200 mx-auto">
             <div className="text-center mb-8">
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-2">
                     Welcome Back!
@@ -297,6 +298,7 @@ export default function LoginForm({ openModal }) {
                     Sign up
                 </a>
             </p>
+        </div>
         </div>
     );
 }

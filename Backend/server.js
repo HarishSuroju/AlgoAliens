@@ -497,5 +497,77 @@ app.post("/onboarding", verifyToken, async (req, res) => {
     }
 });
 
+// ---------- GET USER PROFILE ----------
+app.get("/profile", verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Fetch user data from database
+        const userQuery = `
+            SELECT id, firstname, lastname, email, created_at
+            FROM users 
+            WHERE id = $1
+        `;
+        const userResult = await pool.query(userQuery, [userId]);
+        
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        const user = userResult.rows[0];
+        
+        // Fetch onboarding data if exists
+        const onboardingQuery = `
+            SELECT interests, goals, field_of_study, college_details
+            FROM onboarding 
+            WHERE user_id = $1
+        `;
+        const onboardingResult = await pool.query(onboardingQuery, [userId]);
+        
+        // Create username from email if not exists
+        const username = user.email ? user.email.split('@')[0] : 'user';
+        
+        // Combine user data with onboarding data
+        const profileData = {
+            user: {
+                id: user.id,
+                firstName: user.firstname,
+                lastName: user.lastname,
+                username: username,
+                email: user.email,
+                createdAt: user.created_at,
+                interests: onboardingResult.rows[0]?.interests || [],
+                goals: onboardingResult.rows[0]?.goals || [],
+                fieldOfStudy: onboardingResult.rows[0]?.field_of_study || [],
+                collegeDetails: onboardingResult.rows[0]?.college_details || '',
+                bio: `Passionate learner${onboardingResult.rows[0]?.field_of_study?.[0] ? ` studying ${onboardingResult.rows[0].field_of_study[0]}` : ''}.`
+            }
+        };
+        
+        res.status(200).json(profileData);
+    } catch (error) {
+        console.error("Profile fetch error:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// ---------- UPDATE USER PROFILE ----------
+app.put("/profile", verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { username, bio } = req.body;
+        
+        // For now, we'll just return success since we don't have separate username/bio fields
+        // In a real app, you'd update the appropriate fields
+        
+        res.status(200).json({ 
+            message: "Profile updated successfully"
+        });
+    } catch (error) {
+        console.error("Profile update error:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));

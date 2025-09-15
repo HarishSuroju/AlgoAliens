@@ -9,8 +9,13 @@ import LoginForm from "./pages/LoginForm";
 import SignUpForm from "./pages/SignUpForm";
 import OnboardingForm from "./pages/OnboardingForm";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
-import DashboardPage from "./pages/DashboardPage"; // ✅ make sure this exists
-import GitHubCallback from "./pages/GitHubCallback"; // ✅ GitHub OAuth callback handler
+import DashboardPage from "./pages/DashboardPage.jsx";
+import GitHubCallback from "./pages/GitHubCallback";
+import HomePage from "./pages/HomePage.jsx";
+import AboutPage from "./pages/AboutPage.jsx";
+import ResourcesPage from "./pages/ResourcesPage.jsx";
+import HelpPage from "./pages/HelpPage.jsx";
+import ProfilePage from "./pages/ProfilePage.jsx";
 
 // ✅ ProtectedRoute wrapper
 const ProtectedRoute = ({ children }) => {
@@ -51,11 +56,11 @@ const AnimatedWrapper = ({ children, keyName }) => (
     <AnimatePresence mode="wait">
         <motion.div
             key={keyName}
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -30 }}
-            transition={{ duration: 0.5 }}
-            className="w-full"
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="w-full min-h-screen flex flex-col overflow-x-hidden"
         >
             {children}
         </motion.div>
@@ -88,10 +93,10 @@ function App() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 font-['Inter']">
+        <div className="min-h-screen bg-gray-100 font-['Inter'] overflow-x-hidden">
             {/* Simple Modal */}
             {modalData.isOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110]">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
                         <h3 className="text-lg font-medium text-gray-900 mb-2">{modalData.title}</h3>
                         <p className="text-gray-600 mb-4">{modalData.message}</p>
@@ -106,10 +111,50 @@ function App() {
             )}
             
             <Routes>
-                {/* Redirect root path to /login */}
-                <Route path="/" element={<Navigate to="/login" replace />} />
+                {/* Redirect root path to /home */}
+                <Route path="/" element={<Navigate to="/home" replace />} />
 
                 {/* Public routes with animation */}
+                <Route
+                    path="/home"
+                    element={
+                        <PublicRoute>
+                            <AnimatedWrapper keyName="home">
+                                <HomePage />
+                            </AnimatedWrapper>
+                        </PublicRoute>
+                    }
+                />
+                <Route
+                    path="/about"
+                    element={
+                        <PublicRoute>
+                            <AnimatedWrapper keyName="about">
+                                <AboutPage />
+                            </AnimatedWrapper>
+                        </PublicRoute>
+                    }
+                />
+                <Route
+                    path="/resources"
+                    element={
+                        <PublicRoute>
+                            <AnimatedWrapper keyName="resources">
+                                <ResourcesPage />
+                            </AnimatedWrapper>
+                        </PublicRoute>
+                    }
+                />
+                <Route
+                    path="/help"
+                    element={
+                        <PublicRoute>
+                            <AnimatedWrapper keyName="help">
+                                <HelpPage />
+                            </AnimatedWrapper>
+                        </PublicRoute>
+                    }
+                />
                 <Route
                     path="/login"
                     element={
@@ -166,9 +211,19 @@ function App() {
                         </ProtectedRoute>
                     }
                 />
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute>
+                            <AnimatedWrapper keyName="profile">
+                                <ProfilePage />
+                            </AnimatedWrapper>
+                        </ProtectedRoute>
+                    }
+                />
 
                 {/* Catch-all route */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
         </div>
     );

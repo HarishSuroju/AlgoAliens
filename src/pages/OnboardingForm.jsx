@@ -185,7 +185,7 @@ export default function OnboardingForm({ onOnboardingComplete, openModal }) {
 
             const responseData = await response.json();
             
-            setMessage({ type: 'success', text: 'Welcome to AlgoAliens! Redirecting to dashboard...' });
+            setMessage({ type: 'success', text: 'Welcome to AlgoAliens! Redirecting to home page...' });
             
             // Complete onboarding and navigate to dashboard
             if (onOnboardingComplete) {
@@ -193,7 +193,7 @@ export default function OnboardingForm({ onOnboardingComplete, openModal }) {
             }
             
             setTimeout(() => {
-                navigate('/dashboard', { replace: false });
+                navigate('/home', { replace: true });
             }, 1500);
         } catch (error) {
             console.error('Onboarding error:', error);
@@ -204,6 +204,7 @@ export default function OnboardingForm({ onOnboardingComplete, openModal }) {
     };
 
     return (
+        <div className="w-full min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 font-['Inter'] overflow-x-hidden">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200 mx-auto">
             <div className="text-center mb-8">
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-2">
@@ -435,6 +436,7 @@ export default function OnboardingForm({ onOnboardingComplete, openModal }) {
                     )}
                 </button>
             </form>
+        </div>
         </div>
     );
 }

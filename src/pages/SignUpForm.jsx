@@ -263,6 +263,7 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
 
 
     return (
+        <div className="w-full min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 font-['Inter'] overflow-x-hidden">
         <div className="mx-auto bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200">
             <div className="text-center mb-8">
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-2">
@@ -603,6 +604,7 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                     </a>
                 </p>
             )}
+        </div>
         </div>
     );
 }
