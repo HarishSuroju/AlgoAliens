@@ -1,158 +1,177 @@
+// client/src/App.jsx
 import React, { useState } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "./hooks/useAuth.jsx";
 import { motion, AnimatePresence } from "framer-motion";
-import SignUpForm from "./pages/SignUpForm.jsx";
-import LoginForm from "./pages/LoginForm.jsx";
-import OnboardingForm from "./pages/OnboardingForm.jsx";
 
-// Custom Modal Component
-const Modal = ({ isOpen, onClose, title, children }) => {
-    if (!isOpen) return null;
+// Pages
+import LoginForm from "./pages/LoginForm";
+import SignUpForm from "./pages/SignUpForm";
+import OnboardingForm from "./pages/OnboardingForm";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import DashboardPage from "./pages/DashboardPage"; // ✅ make sure this exists
+import GitHubCallback from "./pages/GitHubCallback"; // ✅ GitHub OAuth callback handler
 
-    return (
-        <div
-            className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4 z-50 transition-opacity duration-300 ease-in-out"
-            aria-labelledby="modal-title"
-            role="dialog"
-            aria-modal="true"
-        >
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm relative transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <h3
-                    className="text-lg font-bold leading-6 text-gray-900 mb-4"
-                    id="modal-title"
-                >
-                    {title}
-                </h3>
-                <div className="mt-2">{children}</div>
-                <div className="mt-5 sm:mt-6">
-                    <button
-                        type="button"
-                        className="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#480360] text-base font-medium text-white hover:bg-[#a14097] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#480360] transition-all duration-200 ease-in-out"
-                        onClick={onClose}
-                    >
-                        Close
-                    </button>
-                </div>
+// ✅ ProtectedRoute wrapper
+const ProtectedRoute = ({ children }) => {
+    const { isAuthenticated, loading } = useAuth();
+    const location = useLocation();
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                Loading...
             </div>
-        </div>
-    );
+        );
+    }
+
+    if (!isAuthenticated) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+    return children;
 };
 
-export default function App() {
-    const [currentForm, setCurrentForm] = useState("login"); // Start with login form
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalTitle, setModalTitle] = useState("");
-    const [modalContent, setModalContent] = useState("");
+// ✅ PublicRoute wrapper
+const PublicRoute = ({ children }) => {
+    const { isAuthenticated, loading } = useAuth();
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                Loading...
+            </div>
+        );
+    }
+    // Don't redirect authenticated users from public routes
+    // Allow them to access signup/login pages if needed
+    return children;
+};
+
+// ✅ Wrapper for animated routes
+const AnimatedWrapper = ({ children, keyName }) => (
+    <AnimatePresence mode="wait">
+        <motion.div
+            key={keyName}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -30 }}
+            transition={{ duration: 0.5 }}
+            className="w-full"
+        >
+            {children}
+        </motion.div>
+    </AnimatePresence>
+);
+
+function App() {
     const [signUpData, setSignUpData] = useState({});
-    const [isAnimating, setIsAnimating] = useState(false);
+    const [modalData, setModalData] = useState({ isOpen: false, title: '', message: '' });
 
-    const openModal = (title, content) => {
-        setModalTitle(title);
-        setModalContent(content);
-        setIsModalOpen(true);
-    };
-
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setModalTitle("");
-        setModalContent("");
-    };
-
-    const handleSwitchToSignUp = () => {
-        setCurrentForm("signup");
-    };
-
-    const handleSwitchToLogin = () => {
-        setCurrentForm("login");
-    };
-
-    // Transition: SignUp → Onboarding
     const handleSignUpSuccess = (data) => {
         setSignUpData(data);
-        setIsAnimating(true); // start animation
-        setTimeout(() => {
-            setCurrentForm("onboarding");
-            setIsAnimating(false); // reset
-        }, 1200); // matches animation duration
     };
 
     const handleOnboardingComplete = () => {
-        openModal(
-            "Onboarding Complete",
-            "Thank you for providing your information! Your journey begins now."
-        );
         setSignUpData({});
-        setCurrentForm("login");
+    };
+
+    const openModal = (title, message) => {
+        setModalData({ isOpen: true, title, message });
+        // Auto-close modal after 3 seconds
+        setTimeout(() => {
+            setModalData({ isOpen: false, title: '', message: '' });
+        }, 3000);
+    };
+
+    const onSwitchToLogin = () => {
+        // Navigate to login page
+        window.location.href = '/login';
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12 font-['Inter']">
-            {/* AnimatePresence handles mount/unmount animations */}
-            <AnimatePresence mode="wait">
-                {currentForm === "login" && !isAnimating && (
-                    <motion.div
-                        key="login"
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -30 }}
-                        transition={{ duration: 0.5 }}
-                        className="w-full"
-                    >
-                        <LoginForm
-                            onSwitchToSignUp={handleSwitchToSignUp}
-                            openModal={openModal}
-                        />
-                    </motion.div>
-                )}
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-8 font-['Inter']">
+            {/* Simple Modal */}
+            {modalData.isOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">{modalData.title}</h3>
+                        <p className="text-gray-600 mb-4">{modalData.message}</p>
+                        <button
+                            onClick={() => setModalData({ isOpen: false, title: '', message: '' })}
+                            className="w-full bg-[#480360] text-white py-2 px-4 rounded hover:bg-[#a14097] transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            <Routes>
+                {/* Redirect root path to /login */}
+                <Route path="/" element={<Navigate to="/login" replace />} />
 
-                {currentForm === "signup" && !isAnimating && (
-                    <motion.div
-                        key="signup"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5 }}
-                        className="w-full"
-                    >
-                        <SignUpForm
-                            onSignUpSuccess={handleSignUpSuccess}
-                            onSwitchToLogin={handleSwitchToLogin}
-                            openModal={openModal}
-                        />
-                    </motion.div>
-                )}
+                {/* Public routes with animation */}
+                <Route
+                    path="/login"
+                    element={
+                        <PublicRoute>
+                            <AnimatedWrapper keyName="login">
+                                <LoginForm openModal={openModal} />
+                            </AnimatedWrapper>
+                        </PublicRoute>
+                    }
+                />
+                <Route
+                    path="/signup"
+                    element={
+                        <PublicRoute>
+                            <AnimatedWrapper keyName="signup">
+                                <SignUpForm 
+                                    onSignUpSuccess={handleSignUpSuccess} 
+                                    onSwitchToLogin={onSwitchToLogin}
+                                    openModal={openModal}
+                                />
+                            </AnimatedWrapper>
+                        </PublicRoute>
+                    }
+                />
+                <Route
+                    path="/reset-password/:token"
+                    element={<ResetPasswordPage />}
+                />
+                <Route
+                    path="/auth/github/callback"
+                    element={<GitHubCallback />}
+                />
 
-                {currentForm === "onboarding" && !isAnimating && (
-                    <motion.div
-                        key="onboarding"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5 }}
-                        className="w-full"
-                    >
-                        <OnboardingForm
-                            onOnboardingComplete={handleOnboardingComplete}
-                            openModal={openModal}
-                        />
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                {/* Protected routes with animation */}
+                <Route
+                    path="/onboarding"
+                    element={
+                        <ProtectedRoute>
+                            <AnimatedWrapper keyName="onboarding">
+                                <OnboardingForm
+                                    signUpData={signUpData}
+                                    onOnboardingComplete={handleOnboardingComplete}
+                                    openModal={openModal}
+                                />
+                            </AnimatedWrapper>
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/dashboard"
+                    element={
+                        <ProtectedRoute>
+                            <DashboardPage />
+                        </ProtectedRoute>
+                    }
+                />
 
-            {/* Expanding/Shrinking button effect */}
-            {/*{isAnimating && (*/}
-            {/*    <motion.button*/}
-            {/*        initial={{ scale: 1 }}*/}
-            {/*        animate={{ scale: 40, opacity: 0 }}*/}
-            {/*        transition={{ duration: 1.2, ease: "easeInOut" }}*/}
-            {/*        className="absolute z-50 bg-[#480360] text-white px-6 py-3 rounded-full shadow-lg font-semibold"*/}
-            {/*    >*/}
-            {/*        Transitioning...*/}
-            {/*    </motion.button>*/}
-            {/*)}*/}
-
-            <Modal isOpen={isModalOpen} onClose={closeModal} title={modalTitle}>
-                <p className="text-sm text-gray-700">{modalContent}</p>
-            </Modal>
+                {/* Catch-all route */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
         </div>
     );
 }
+
+export default App;

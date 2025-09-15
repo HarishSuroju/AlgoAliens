@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
-// Removed: import './assets/App.css'; // This import is not needed for a component file using Tailwind CSS.
+import { useGoogleLogin } from '@react-oauth/google';
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth.jsx";
+import axios from "axios";
 
-// Note: The Modal component is now centralized in App.jsx and passed down via props.
-// This component will receive 'openModal' as a prop from App.jsx.
-
-export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal }) { // Destructure openModal from props
-                                                                     // State variables for form fields
+export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal }) {
+    const { setIsAuthenticated } = useAuth();
     const [firstName, setFirstName] = useState('');
     const [middleName, setMiddleName] = useState('');
     const [lastName, setLastName] = useState('');
     const [dob, setDob] = useState('');
     const [gender, setGender] = useState('');
     const [address, setAddress] = useState('');
+    const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
-    // State variables for UI/UX
     const [stage, setStage] = useState('initial_form');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -27,14 +27,7 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
     const [otpSent, setOtpSent] = useState(false);
     const [resendTimer, setResendTimer] = useState(0);
 
-    // --- Utility Functions ---
-    const validateEmail = (email) => {
-        return /\S+@\S+\.\S+/.test(email);
-    };
-
-    const validateDob = (dateString) => {
-        return dateString !== '';
-    };
+    const API_BASE = "http://localhost:4000";
 
     const getPasswordStrength = (pwd) => {
         let strength = 0;
@@ -61,45 +54,29 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
         }
     };
 
-    // --- Handlers for Form Actions ---
     const handleSendOtp = async () => {
-        setMessage({ type: '', text: '' });
-
-        if (!firstName.trim()) {
-            setMessage({ type: 'error', text: 'Please enter your First Name.' });
-            return;
-        }
-        if (!lastName.trim()) {
-            setMessage({ type: 'error', text: 'Please enter your Last Name.' });
-            return;
-        }
-        if (!validateDob(dob)) {
-            setMessage({ type: 'error', text: 'Please enter your Date of Birth.' });
-            return;
-        }
-        if (!gender) {
-            setMessage({ type: 'error', text: 'Please select your Gender.' });
-            return;
-        }
-        if (!address.trim()) {
-            setMessage({ type: 'error', text: 'Please enter your Address.' });
-            return;
-        }
-        if (!validateEmail(email)) {
-            setMessage({ type: 'error', text: 'Please enter a valid email address.' });
-            return;
-        }
-
         setLoading(true);
-        setMessage({ type: 'info', text: 'Sending verification code...' });
+        setMessage({ type: "", text: "" });
 
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const res = await fetch(`${API_BASE}/otp/request`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, phone }),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || "Failed to send OTP");
+            }
+
+            const data = await res.json();
             setOtpSent(true);
             setResendTimer(60);
-            setMessage({ type: 'success', text: `OTP sent to ${email}. Please check your inbox.` });
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Failed to send OTP. Please try again.' });
+            setMessage({ type: "success", text: data.message });
+
+        } catch (err) {
+            setMessage({ type: "error", text: err.message });
         } finally {
             setLoading(false);
         }
@@ -107,51 +84,67 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
 
     const handleSignUp = async (e) => {
         e.preventDefault();
-        setMessage({ type: '', text: '' });
+        setMessage({ type: "", text: "" });
 
         if (otp.length !== 6 || !/^\d+$/.test(otp)) {
-            setMessage({ type: 'error', text: 'Please enter a valid 6-digit OTP.' });
-            return;
+            return setMessage({ type: "error", text: "Please enter a valid 6-digit OTP." });
         }
 
         const passwordStrength = getPasswordStrength(password);
-        if (passwordStrength === 'Weak') {
-            setMessage({ type: 'error', text: 'Please create a stronger password.' });
-            return;
+        if (passwordStrength === "Weak") {
+            return setMessage({ type: "error", text: "Please create a stronger password." });
         }
         if (password !== confirmPassword) {
-            setMessage({ type: 'error', text: 'Passwords do not match.' });
-            return;
+            return setMessage({ type: "error", text: "Passwords do not match." });
         }
 
         setLoading(true);
-        setMessage({ type: 'info', text: 'Verifying OTP and creating account...' });
+        setMessage({ type: "info", text: "Verifying OTP and creating account..." });
 
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            if (otp === '123456') {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                setMessage({ type: 'success', text: 'Account created successfully! Redirecting...' });
-                onSignUpSuccess({
-                    firstName,
-                    middleName,
-                    lastName,
-                    dob,
-                    gender,
-                    address,
-                    email
-                });
-            } else {
-                setMessage({ type: 'error', text: 'Incorrect OTP. Please try again.' });
+            const verifyResp = await fetch(`${API_BASE}/otp/verify`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, otp }),
+            });
+            const verifyData = await verifyResp.json();
+            if (!verifyResp.ok || !verifyData.verified || !verifyData.token) {
+                throw new Error(verifyData.message || "OTP verification failed");
             }
-        } catch (error) {
-            setMessage({ type: 'error', text: 'Sign-up failed. Please try again.' });
+
+            const token = verifyData.token;
+
+            const signResp = await fetch(`${API_BASE}/signup`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    firstName, middleName, lastName, dob, gender, address, email, password, token,
+                }),
+            });
+            const signData = await signResp.json();
+            if (!signResp.ok) {
+                throw new Error(signData.message || "Signup failed");
+            }
+
+            setMessage({ type: "success", text: signData.message || "Account created!" });
+            
+            // Store the token and update authentication state
+            if (signData.token) {
+                localStorage.setItem("token", signData.token);
+                setIsAuthenticated(true);
+            }
+            
+            // Add delay for success message visibility, then navigate
+            setTimeout(() => {
+                navigate("/onboarding", { replace: false });
+            }, 1500);
+        } catch (err) {
+            setMessage({ type: "error", text: err.message });
         } finally {
             setLoading(false);
         }
     };
 
-    // Effect for OTP resend timer
     useEffect(() => {
         let timerId;
         if (otpSent && resendTimer > 0) {
@@ -164,7 +157,6 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
         return () => clearInterval(timerId);
     }, [otpSent, resendTimer]);
 
-    // Social login button component (reusable)
     const SocialLoginIcon = ({ icon, onClick }) => (
         <button
             onClick={onClick}
@@ -174,30 +166,104 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
         </button>
     );
 
-    // Custom Google Icon using an image URL
     const GoogleIcon = () => (
         <img
-            src="https://www.svgrepo.com/show/303108/google-icon-logo.svg" // Replace with your Google logo URL
+            src="https://www.svgrepo.com/show/303108/google-icon-logo.svg"
             alt="Google Logo"
             className="h-5 w-5"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=G"; }} // Fallback image
+            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=G"; }}
         />
     );
 
-    // Custom GitHub Icon using an image URL
     const GitHubIcon = () => (
         <img
-            src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" // Replace with your GitHub logo URL
+            src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
             alt="GitHub Logo"
             className="h-5 w-5"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=GH"; }} // Fallback image
+            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=GH"; }}
         />
     );
 
+    const googleLogin = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            try {
+                setLoading(true);
+                setMessage({ type: 'info', text: 'Processing Google signup...' });
+                
+                // Fetch user profile from Google
+                const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                    headers: {
+                        Authorization: `Bearer ${tokenResponse.access_token}`,
+                    },
+                });
+                
+                if (!profileResponse.ok) {
+                    throw new Error('Failed to fetch Google profile');
+                }
+                
+                const userProfile = await profileResponse.json();
+                
+                // Send Google user data to backend for signup/storage
+                const backendResponse = await fetch('http://localhost:4000/auth/google/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: userProfile.email,
+                        username: userProfile.name,
+                        googleId: userProfile.id,
+                        picture: userProfile.picture,
+                        accessToken: tokenResponse.access_token
+                    }),
+                });
+                
+                const backendData = await backendResponse.json();
+                
+                if (!backendResponse.ok) {
+                    throw new Error(backendData.message || 'Google signup failed');
+                }
+                
+                // Store the token and update authentication state
+                localStorage.setItem("token", backendData.token);
+                setIsAuthenticated(true);
+                
+                setMessage({ type: 'success', text: 'Google signup successful! Redirecting to onboarding...' });
+                openModal("Google Signup Success", `Welcome ${userProfile.name}! Redirecting to onboarding...`);
+                onSignUpSuccess({ email: userProfile.email, username: userProfile.name });
+                
+                // Use setTimeout to allow modal to show briefly before navigation
+                setTimeout(() => {
+                    navigate("/onboarding", { replace: false });
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Google signup error:', error);
+                setMessage({ type: 'error', text: error.message || 'Google signup failed' });
+                openModal("Google Signup Failed", "Something went wrong with Google signup.");
+            } finally {
+                setLoading(false);
+            }
+        },
+        onError: () => {
+            openModal("Google Signup Failed", "Something went wrong with Google signup.");
+        },
+    });
+
+    const handleGitHubLogin = () => {
+        const clientId = "Iv23liy7qUdzBK9ZWk3a";
+        const redirectUri = "http://localhost:5173/auth/github/callback"; // Match GitHub App callback URL
+        const scope = "user:email";
+        window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=signup`;
+    };
+
+    const navigate = useNavigate();
+
+    const handleVerifyOtp = () => { /* no-op as handleSignUp handles verification */ };
+
+
     return (
-        //"flex items-center justify-center min-h-screen bg-gray-100"
-        // The outermost div with min-h-screen, flex, items-center, justify-center, and padding is now in App.jsx
-        <div className="mx-auto bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200"> {/* Added mx-auto here */}
+        <div className="mx-auto bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl p-6 sm:p-8 md:p-10 border border-gray-200">
             <div className="text-center mb-8">
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-2">
                     Create Your Account
@@ -207,7 +273,6 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                 </p>
             </div>
 
-            {/* Message Display Area */}
             {message.text && (
                 <div
                     className={`p-3 rounded-md mb-6 text-sm ${
@@ -223,9 +288,7 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                 </div>
             )}
 
-            {/* Form */}
             <form onSubmit={handleSignUp}>
-                {/* Initial Form Fields */}
                 {stage === 'initial_form' && (
                     <div className="mb-6">
                         <div className="mb-4">
@@ -329,6 +392,24 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                         </div>
 
                         <div className="mb-6">
+                            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                                Phone Number
+                            </label>
+                            <input
+                                id="phone"
+                                name="phone"
+                                type="tel"
+                                autoComplete="tel"
+                                required
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#480360] focus:border-[#480360] sm:text-sm transition-all duration-200 ease-in-out hover:border-gray-400 focus:ring-2 focus:ring-offset-0 focus:ring-offset-white"
+                                placeholder="+91 9876543210"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                disabled={loading || otpSent}
+                            />
+                        </div>
+
+                        <div className="mb-6">
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                                 Email address
                             </label>
@@ -360,7 +441,6 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                             </div>
                         </div>
 
-                        {/* OTP Verification Field (conditionally rendered) */}
                         {otpSent && (
                             <div className="mb-6">
                                 <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
@@ -389,7 +469,7 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                                     ) : (
                                         <button
                                             type="button"
-                                            onClick={handleSendOtp} // Resend OTP
+                                            onClick={handleSendOtp}
                                             className="text-[#a14097] hover:text-[#480360] text-sm font-medium transition-colors duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
                                             disabled={loading}
                                         >
@@ -470,7 +550,6 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                             )}
                         </button>
 
-                        {/* Divider and Social Logins after main action button */}
                         {stage !== 'success' && (
                             <>
                                 <div className="relative flex items-center my-8">
@@ -482,11 +561,11 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                                 <div className="flex justify-center space-x-4 mb-8">
                                     <SocialLoginIcon
                                         icon={<GoogleIcon />}
-                                        onClick={() => openModal('Google Login', 'You clicked to continue with Google. (This would initiate an OAuth flow)')}
+                                        onClick={() => googleLogin()}
                                     />
                                     <SocialLoginIcon
                                         icon={<GitHubIcon />}
-                                        onClick={() => openModal('GitHub Login', 'You clicked to continue with GitHub. (This would would initiate an OAuth flow)')}
+                                        onClick={handleGitHubLogin}
                                     />
                                 </div>
                             </>
@@ -495,7 +574,6 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                 )}
             </form>
 
-            {/* Success Message */}
             {stage === 'success' && (
                 <div className="text-center py-10">
                     <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
@@ -510,7 +588,6 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                 </div>
             )}
 
-            {/* Sign-in link */}
             {stage !== 'success' && (
                 <p className="mt-8 text-center text-sm text-gray-600">
                     Already have an account?{' '}
@@ -518,7 +595,7 @@ export default function SignUpForm({ onSignUpSuccess, onSwitchToLogin, openModal
                         href=""
                         onClick={(e) => {
                             e.preventDefault();
-                            onSwitchToLogin(); // Call the prop to switch to login form
+                            onSwitchToLogin();
                         }}
                         className="font-medium text-[#480360] hover:text-[#a14097] transition-colors duration-200 ease-in-out"
                     >

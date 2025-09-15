@@ -1,13 +1,103 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Loader2, } from 'lucide-react';
-import { FcGoogle } from 'react-icons/fc';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useGoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../hooks/useAuth.jsx';
+import axios from 'axios';
 
-export default function LoginForm({ onSwitchToSignUp, openModal }) {
+export default function LoginForm({ openModal }) {
+    const { setIsAuthenticated } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [showPassword, setShowPassword] = useState(false);
+    const navigate = useNavigate();
+
+    // Fallback modal handler if openModal is not provided
+    const handleModal = openModal || ((title, msg) => console.log(title, msg));
+
+    // Google OAuth login
+    const googleLogin = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            try {
+                setLoading(true);
+                setMessage({ type: 'info', text: 'Processing Google login...' });
+                
+                // Fetch user profile from Google
+                const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                    headers: {
+                        Authorization: `Bearer ${tokenResponse.access_token}`,
+                    },
+                });
+                
+                if (!profileResponse.ok) {
+                    throw new Error('Failed to fetch Google profile');
+                }
+                
+                const userProfile = await profileResponse.json();
+                
+                // Send Google user data to backend for storage/authentication
+                const backendResponse = await fetch('http://localhost:4000/auth/google/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: userProfile.email,
+                        username: userProfile.name,
+                        googleId: userProfile.id,
+                        picture: userProfile.picture,
+                        accessToken: tokenResponse.access_token
+                    }),
+                });
+                
+                const backendData = await backendResponse.json();
+                
+                if (!backendResponse.ok) {
+                    throw new Error(backendData.message || 'Google login failed');
+                }
+                
+                // Store the token and update authentication state
+                localStorage.setItem("token", backendData.token);
+                setIsAuthenticated(true);
+                
+                setMessage({ type: 'success', text: 'Google login successful! Redirecting...' });
+                handleModal("Google Login Success", `Welcome back, ${userProfile.name}! Redirecting...`);
+                
+                // Check if this is a new user (signup) or existing user (login)
+                if (backendData.message && backendData.message.includes('signup')) {
+                    // New user - redirect to onboarding
+                    setTimeout(() => {
+                        navigate('/onboarding', { replace: false });
+                    }, 1500);
+                } else {
+                    // Existing user - redirect to external site
+                    setTimeout(() => {
+                        window.location.href = 'https://www.algorithmaliens.com/';
+                    }, 1500);
+                }
+                
+            } catch (error) {
+                console.error('Google login error:', error);
+                setMessage({ type: 'error', text: error.message || 'Google login failed' });
+                handleModal("Google Login Failed", "Something went wrong with Google login.");
+            } finally {
+                setLoading(false);
+            }
+        },
+        onError: () => {
+            handleModal("Google Login Failed", "Something went wrong with Google login.");
+        },
+    });
+
+    // GitHub OAuth login
+    const handleGitHubLogin = () => {
+        const clientId = "Iv23liy7qUdzBK9ZWk3a";
+        const redirectUri = "http://localhost:5174/auth/github/callback"; // Updated to match current port
+        const scope = "user:email";
+        window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=login`;
+    };
 
     const validateEmail = (email) => /\S+@\S+\.\S+/.test(email);
 
@@ -28,11 +118,31 @@ export default function LoginForm({ onSwitchToSignUp, openModal }) {
         setMessage({ type: 'info', text: 'Logging in...' });
 
         try {
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            const resp = await fetch('http://localhost:4000/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                throw new Error(data.message || 'Login failed');
+            }
+
+            // Save token in localStorage and update auth state
+            localStorage.setItem('token', data.token);
+            setIsAuthenticated(true);
+
             setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
-            openModal('Login Success', 'You have successfully logged in!');
+            handleModal('Login Success', `Welcome back, ${data.user.firstName}!`);
+
+            // Redirect to external site after brief delay
+            setTimeout(() => {
+                window.location.href = 'https://www.algorithmaliens.com/';
+            }, 1500);
         } catch (error) {
-            setMessage({ type: 'error', text: 'Login failed. Please check your credentials.' });
+            setMessage({ type: 'error', text: error.message });
         } finally {
             setLoading(false);
         }
@@ -49,20 +159,19 @@ export default function LoginForm({ onSwitchToSignUp, openModal }) {
 
     const GoogleIcon = () => (
         <img
-            src="https://www.svgrepo.com/show/303108/google-icon-logo.svg" // Replace with your Google logo URL
+            src="https://www.svgrepo.com/show/303108/google-icon-logo.svg"
             alt="Google Logo"
             className="h-5 w-5"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=G"; }} // Fallback image
+            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=G"; }}
         />
     );
 
-    // Custom GitHub Icon using an image URL
     const GitHubIcon = () => (
         <img
-            src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" // Replace with your GitHub logo URL
+            src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
             alt="GitHub Logo"
             className="h-5 w-5"
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=GH"; }} // Fallback image
+            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/20x20/cccccc/ffffff?text=GH"; }}
         />
     );
 
@@ -88,12 +197,8 @@ export default function LoginForm({ onSwitchToSignUp, openModal }) {
                     } flex items-center`}
                 >
                     {message.type === 'success' && <Loader2 className="h-5 w-5 mr-2" />}
-                    {message.type === 'error' && (
-                        <span className="mr-2 font-bold text-lg">!</span>
-                    )}
-                    {message.type === 'info' && (
-                        <span className="mr-2 font-bold text-lg">i</span>
-                    )}
+                    {message.type === 'error' && <span className="mr-2 font-bold text-lg">!</span>}
+                    {message.type === 'info' && <span className="mr-2 font-bold text-lg">i</span>}
                     <span>{message.text}</span>
                 </div>
             )}
@@ -139,39 +244,23 @@ export default function LoginForm({ onSwitchToSignUp, openModal }) {
                             className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                             onClick={() => setShowPassword(!showPassword)}
                         >
-                            {showPassword ? (
-                                <EyeOff className="h-5 w-5" />
-                            ) : (
-                                <Eye className="h-5 w-5" />
-                            )}
+                            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                         </button>
                     </div>
                 </div>
 
                 <div className="text-sm text-right mb-6">
-                    <a
-                        href="#"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            openModal('Forgot Password', 'This would navigate to a password recovery page.');
-                        }}
-                        className="font-medium text-[#480360] hover:text-[#a14097] transition-colors duration-200 ease-in-out"
-                    >
+                    <a href="#" className="font-medium text-[#480360] hover:text-[#a14097] transition-colors duration-200 ease-in-out">
                         Forgot your password?
                     </a>
                 </div>
 
                 <button
-                    type="button"
-                    onClick={() => window.location.href = "https://www.algorithmaliens.com/"}
+                    type="submit"
                     className="mt-6 w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#480360] hover:bg-[#a14097] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#480360] transition-all duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={loading}
                 >
-                    {loading ? (
-                        <Loader2 className="animate-spin h-5 w-5 mr-3" />
-                    ) : (
-                        'Sign In'
-                    )}
+                    {loading ? <Loader2 className="animate-spin h-5 w-5 mr-3" /> : 'Sign In'}
                 </button>
             </form>
 
@@ -187,11 +276,11 @@ export default function LoginForm({ onSwitchToSignUp, openModal }) {
             <div className="flex justify-center space-x-4 mb-8">
                 <SocialLoginIcon
                     icon={<GoogleIcon />}
-                    onClick={() => openModal('Google Login', 'You clicked to continue with Google. (This would initiate an OAuth flow)')}
+                    onClick={() => googleLogin()}
                 />
                 <SocialLoginIcon
                     icon={<GitHubIcon />}
-                    onClick={() => openModal('GitHub Login', 'You clicked to continue with GitHub. (This would would initiate an OAuth flow)')}
+                    onClick={handleGitHubLogin}
                 />
             </div>
 
@@ -201,7 +290,7 @@ export default function LoginForm({ onSwitchToSignUp, openModal }) {
                     href="#"
                     onClick={(e) => {
                         e.preventDefault();
-                        onSwitchToSignUp();
+                        navigate("/signup"); // ✅ Navigate to signup page
                     }}
                     className="font-medium text-[#480360] hover:text-[#a14097] transition-colors duration-200 ease-in-out"
                 >
